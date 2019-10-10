@@ -61,6 +61,7 @@ Public global variables declarations
 /*==================================================================================================
 Public function prototypes
 ==================================================================================================*/
+extern void APP_PrintSensors(void *param);
 
 #ifdef __cplusplus
 extern "C" {

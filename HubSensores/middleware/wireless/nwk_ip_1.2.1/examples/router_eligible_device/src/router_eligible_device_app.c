@@ -100,12 +100,20 @@ Private macros
 #define APP_CONFIG_URI_PATH                        "/config"
 #define APP_TEMPERATURE_URI_PATH                   "/temperature"
 #define APP_HUMIDITY_URI_PATH                      "/humidity"
+#define APP_DEVNAME_URI_PATH                      "/devname"
 #define APP_SINK_URI_PATH                       "/sink"
 #if LARGE_NETWORK
 #define APP_RESET_TO_FACTORY_URI_PATH           "/reset"
 #endif
 
 #define APP_DEFAULT_DEST_ADDR                   in6addr_realmlocal_allthreadnodes
+
+
+#define set_text_color_red() shell_printf("\033[0;31m")
+#define set_text_color_red_bold() shell_printf("\033[1;31m")
+#define set_text_color_green() shell_printf("\033[0;32m")
+#define set_text_color_green_bold() shell_printf("\033[1;32m")
+#define set_text_color_default() shell_printf("\033[0m")
 
 /*==================================================================================================
 Private type definitions
@@ -128,6 +136,8 @@ static uint32_t samples_cnt = 0;
 static bool_t temperature_up = true;
 static bool_t humidity_up = true;
 
+static char device_name[] = "sensorsHub";
+
 
 /*==================================================================================================
 Private prototypes
@@ -142,6 +152,7 @@ static void APP_LocalDataSinkRelease(void *pParam);
 static void APP_CoapConfigCb(coapSessionStatus_t sessionStatus, void *pData, coapSession_t *pSession, uint32_t dataLen);
 static void APP_CoapTemperatureCb(coapSessionStatus_t sessionStatus, void *pData, coapSession_t *pSession, uint32_t dataLen);
 static void APP_CoapHumidityCb(coapSessionStatus_t sessionStatus, void *pData, coapSession_t *pSession, uint32_t dataLen);
+static void APP_CoapDevnameCb(coapSessionStatus_t sessionStatus, void *pData, coapSession_t *pSession, uint32_t dataLen);
 static void APP_CoapSinkCb(coapSessionStatus_t sessionStatus, void *pData, coapSession_t *pSession, uint32_t dataLen);
 static void App_RestoreLeaderLed(void *param);
 static void APP_SampleSensorsTimerCallback(void *param);
@@ -161,6 +172,7 @@ Public global variables declarations
 const coapUriPath_t gAPP_CONFIG_URI_PATH  		= {SizeOfString(APP_CONFIG_URI_PATH), (uint8_t *)APP_CONFIG_URI_PATH};
 const coapUriPath_t gAPP_TEMPERATURE_URI_PATH 	= {SizeOfString(APP_TEMPERATURE_URI_PATH), (uint8_t *)APP_TEMPERATURE_URI_PATH};
 const coapUriPath_t gAPP_HUMIDITY_URI_PATH 		= {SizeOfString(APP_HUMIDITY_URI_PATH), (uint8_t *)APP_HUMIDITY_URI_PATH};
+const coapUriPath_t gAPP_DEVNAME_URI_PATH 		= {SizeOfString(APP_DEVNAME_URI_PATH), (uint8_t *)APP_DEVNAME_URI_PATH};
 const coapUriPath_t gAPP_SINK_URI_PATH 			= {SizeOfString(APP_SINK_URI_PATH), (uint8_t *)APP_SINK_URI_PATH};
 #if LARGE_NETWORK
 const coapUriPath_t gAPP_RESET_URI_PATH = {SizeOfString(APP_RESET_TO_FACTORY_URI_PATH), (uint8_t *)APP_RESET_TO_FACTORY_URI_PATH};
@@ -507,6 +519,7 @@ static void APP_InitCoapDemo
     coapRegCbParams_t cbParams[] =  {{APP_CoapConfigCb,  (coapUriPath_t *)&gAPP_CONFIG_URI_PATH},
                                      {APP_CoapTemperatureCb, (coapUriPath_t *)&gAPP_TEMPERATURE_URI_PATH},
 									 {APP_CoapHumidityCb, (coapUriPath_t *)&gAPP_HUMIDITY_URI_PATH},
+									 {APP_CoapDevnameCb, (coapUriPath_t *)&gAPP_DEVNAME_URI_PATH},
 #if LARGE_NETWORK
                                      {APP_CoapResetToFactoryDefaultsCb, (coapUriPath_t *)&gAPP_RESET_URI_PATH},
 #endif
@@ -970,7 +983,7 @@ static void APP_CoapConfigCb
         uint8_t temp[10];
 
         ntop(AF_INET6, &pSession->remoteAddr, addrStr, INET6_ADDRSTRLEN);
-        shell_write("\r");
+
 
         if(0 != dataLen)
         {
@@ -978,9 +991,14 @@ static void APP_CoapConfigCb
             (dataLen >= maxDisplayedString) ? (dataLen = (maxDisplayedString - 1)) : (dataLen);
             temp[dataLen]='\0';
             FLib_MemCpy(temp,pData,dataLen);
-            shell_printf((char*)temp);
+            set_text_color_green();
+            shell_printf("\r\n New sampling period:%s. From IPv6 Address: %s\n\r", temp, addrStr);
         }
-        shell_printf("\tSampling period From IPv6 Address: %s\n\r", addrStr);
+        else {
+            set_text_color_red();
+            shell_printf("\r\n Invalid config message from IPv6 Address: %s\n\r", temp, addrStr);
+        }
+        set_text_color_default();
         shell_refresh();
 
     	sampling_period_ms = (uint32_t)NWKU_atol((char*)temp);
@@ -1105,7 +1123,7 @@ static void APP_CoapHumidityCb
     	    /* Compute output */
     	    pIndex = pTempString;
     	    NWKU_PrintDec((uint64_t)(last_humidity_percentx10/10), pIndex, 3, TRUE);
-    	    pIndex += 2; /* keep only the first 2 digits */
+    	    pIndex += 3; /* keep only the first 2 digits */
     	    *pIndex = '.';
     	    pIndex++;
     	    NWKU_PrintDec((uint64_t)(abs(last_humidity_percentx10)%10), pIndex, 1, TRUE);
@@ -1135,6 +1153,55 @@ static void APP_CoapHumidityCb
         MEM_BufferFree(pTempString);
     }
 }
+
+/*!*************************************************************************************************
+\private
+\fn     static void APP_CoapDevnameCb(sessionStatus sessionStatus, void *pData,
+                                   coapSession_t *pSession, uint32_t dataLen)
+\brief  This function is the callback function for CoAP devname message.
+\brief  It sends the device name in a CoAP ACK message.
+
+\param  [in]    sessionStatus   Status for CoAP session
+\param  [in]    pData           Pointer to CoAP message payload
+\param  [in]    pSession        Pointer to CoAP session
+\param  [in]    dataLen         Length of CoAP payload
+***************************************************************************************************/
+static void APP_CoapDevnameCb
+(
+    coapSessionStatus_t sessionStatus,
+    void *pData,
+    coapSession_t *pSession,
+    uint32_t dataLen
+)
+{
+    uint32_t ackPloadSize = 0;
+
+    /* Send CoAP ACK */
+    if(gCoapGET_c == pSession->code)
+    {
+    	ackPloadSize = strlen((char*)device_name);
+    }
+    /* Do not parse the message if it is duplicated */
+    else if((gCoapPOST_c == pSession->code) && (sessionStatus == gCoapSuccess_c))
+    {
+
+    }
+
+    if(gCoapConfirmable_c == pSession->msgType)
+    {
+        if(gCoapGET_c == pSession->code)
+        {
+            COAP_Send(pSession, gCoapMsgTypeAckSuccessChanged_c, device_name, ackPloadSize);
+        }
+        else
+        {
+            COAP_Send(pSession, gCoapMsgTypeAckSuccessChanged_c, NULL, 0);
+        }
+    }
+
+}
+
+
 
 
 /*!*************************************************************************************************
@@ -1207,6 +1274,31 @@ static void APP_SampleSensorsTimerCallback(void *param)
 	NWKU_SendMsg(APP_SampleSensors, NULL, mpAppThreadMsgQueue);
 }
 
+int32_t get_simulated_sensor(int32_t current_value, int32_t max_step, int32_t min_value, int32_t max_value, bool_t increase)
+{
+	uint32_t coin;
+	int32_t step;
+	// flip the coin to see if the value increases o decreases:
+	coin = NWKU_GetRandomNoFromInterval(0,100);
+	step = (int32_t)NWKU_GetRandomNoFromInterval(0,max_step);
+	if(coin > (increase?20:80)){
+		if((current_value + step) <= max_value) {
+			current_value += step;
+		}
+		else {
+			current_value = 500;
+		}
+	}
+	else {
+		if((current_value - step) >= min_value) {
+			current_value -= step;
+		}
+		else {
+			current_value = min_value;
+		}
+	}
+	return current_value;
+}
 /*!*************************************************************************************************
 \private
 \fn
@@ -1216,52 +1308,13 @@ static void APP_SampleSensorsTimerCallback(void *param)
 ***************************************************************************************************/
 static void APP_SampleSensors(void *param)
 {
-	uint32_t coin;
-	int32_t step;
-	// Temperature
-	// flip the coin to see if the value increases o decreases:
-	coin = NWKU_GetRandomNoFromInterval(0,100);
-	step = (int32_t)NWKU_GetRandomNoFromInterval(0,10);
-	if(coin > (temperature_up?20:80)){
-		if((last_temperature_cx10 + step) <= 500) {
-			last_temperature_cx10 += step;
-		}
-		else {
-			last_temperature_cx10 = 500;
-		}
-	}
-	else {
-		if((last_temperature_cx10 - step) >= 0) {
-			last_temperature_cx10 -= step;
-		}
-		else {
-			last_temperature_cx10 = 0;
-		}
-	}
-
-	// Humidity
-	// flip the coin to see if the value increases o decreases:
-	coin = NWKU_GetRandomNoFromInterval(0,100);
-	step = (int32_t)NWKU_GetRandomNoFromInterval(0,10);
-	if(coin > (humidity_up?20:80)) {
-		if((last_humidity_percentx10 + step) <= 1000){
-			last_humidity_percentx10 += step;
-		}
-		else {
-			last_humidity_percentx10 = 1000;
-		}
-	}
-	else {
-		if((last_humidity_percentx10 - step) >= 0){
-			last_humidity_percentx10 -= step;
-		}
-		else {
-			last_humidity_percentx10 = 0;
-		}
-	}
-
+	// Get a new temperature
+	last_temperature_cx10 = get_simulated_sensor(last_temperature_cx10, 10, 0, 500, temperature_up);
+	// Get tne new Humidity
+	last_humidity_percentx10 = get_simulated_sensor(last_humidity_percentx10, 10, 0, 1000, humidity_up);
 	samples_cnt++;
 	// Try to print this every 10 seconds
+#if 0
 	if((samples_cnt%(10000/sampling_period_ms)) == 0) {
 		shell_printf("\tsensors - Tx10:%d%c, Hx10:%d%c, P:%d, C:%d\n\r",
 				     last_temperature_cx10,
@@ -1272,6 +1325,23 @@ static void APP_SampleSensors(void *param)
 					 samples_cnt);
 		shell_refresh();
 	}
+#endif
+}
+
+void APP_PrintSensors(void *param)
+{
+	set_text_color_green();
+	shell_printf("Temperature:%d.%d%c, Humidity:%d.%d%c, Sampling period:%d, Samples count:%d\n\r",
+			     last_temperature_cx10/10,
+				 last_temperature_cx10%10,
+				 temperature_up?'+':'-',
+				 last_humidity_percentx10/10,
+				 last_humidity_percentx10%10,
+				 humidity_up?'+':'-',
+				 sampling_period_ms,
+				 samples_cnt);
+	set_text_color_default();
+	shell_refresh();
 }
 
 #if LARGE_NETWORK

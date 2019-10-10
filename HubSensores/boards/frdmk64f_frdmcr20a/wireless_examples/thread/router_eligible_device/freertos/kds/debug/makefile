@@ -115,7 +115,7 @@ clean:
 	-@echo ' '
 
 pre-build:
-	-arm-none-eabi-gcc -E -x c -P -Iinclude "E:/ITESO/thread_example/HubSensores/boards/frdmk64f_frdmcr20a/wireless_examples/thread/router_eligible_device/freertos/kds/../../../../../../../middleware/wireless/framework_5.0.5/Common/devices/MK64F12/gcc/MK64FN1M0xxx12_connectivity.lld" -o "E:/ITESO/thread_example/HubSensores/boards/frdmk64f_frdmcr20a/wireless_examples/thread/router_eligible_device/freertos/kds/MK64FN1M0xxx12_connectivity.ld" -DgUseBootloaderLink_d=0 -DgUseInternalStorageLink_d=0 -DgUseNVMLink_d=1 -D__ram_vector_table__=1 -DgNVMSectorCountLink_d=32 -DgEraseNVMLink_d=1
+	-arm-none-eabi-gcc -E -x c -P -Iinclude "E:/ITESO/git_repos/ThreadExample/HubSensores/boards/frdmk64f_frdmcr20a/wireless_examples/thread/router_eligible_device/freertos/kds/../../../../../../../middleware/wireless/framework_5.0.5/Common/devices/MK64F12/gcc/MK64FN1M0xxx12_connectivity.lld" -o "E:/ITESO/git_repos/ThreadExample/HubSensores/boards/frdmk64f_frdmcr20a/wireless_examples/thread/router_eligible_device/freertos/kds/MK64FN1M0xxx12_connectivity.ld" -DgUseBootloaderLink_d=0 -DgUseInternalStorageLink_d=0 -DgUseNVMLink_d=1 -D__ram_vector_table__=1 -DgNVMSectorCountLink_d=32 -DgEraseNVMLink_d=1
 	-@echo ' '
 
 secondary-outputs: $(SECONDARY_FLASH)

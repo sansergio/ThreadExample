@@ -110,6 +110,7 @@ extern moduleInfo_t IP_version;
 extern uint16_t mEchoUdpCounter;
 #endif
 
+#include "router_eligible_device_app.h"
 /*==================================================================================================
 Private macros
 ==================================================================================================*/
@@ -260,6 +261,8 @@ static void SHELL_DnsNdDataService(coapSessionStatus_t sessionStatus, void *pDat
 static int8_t SHELL_Filter(uint8_t argc, char *argv[]);
 static void SHELL_Filtering_Print(uint32_t instanceID);
 #endif /* MAC_FILTERING_ENABLED */
+
+static int8_t SHELL_Sensors(uint8_t argc, char *argv[]);
 
 #ifdef USE_MSD_BOOTLOADER
 static int8_t SHELL_FlashEraseWithMSDFunc(uint8_t argc, char *argv[]);
@@ -588,6 +591,16 @@ const cmd_tbl_t aShellCommands[] =
 #endif /* SHELL_USE_AUTO_COMPLETE */
     },
     #endif
+    {
+        "sensors", SHELL_CMD_MAX_ARGS, 0, SHELL_Sensors
+#if SHELL_USE_HELP
+        ,"App print temperature and humidity data",
+        "It just prints, no parameters needed\r\n"
+#endif /* SHELL_USE_HELP */
+#if SHELL_USE_AUTO_COMPLETE
+        ,NULL
+#endif /* SHELL_USE_AUTO_COMPLETE */
+    },
 };
 
 const icmpProtMsgTypeHandler_t gaShellProtMsgTypeHandlerTbl6[] =
@@ -881,6 +894,7 @@ void SHELL_PrintIpAddr
         }
     }
 }
+
 
 #if THR_ENABLE_EVENT_MONITORING
 /*!*************************************************************************************************
@@ -4805,6 +4819,23 @@ static void SHELL_Filtering_Print
     shell_printf("\r\nEnd of MAC Filtering Table.\r\n");
 }
 #endif /* MAC_FILTERING_ENABLED */
+
+static int8_t SHELL_Sensors
+(
+    uint8_t argc,
+    char *argv[]
+)
+{
+	command_ret_t ret = CMD_RET_SUCCESS;
+
+    if (FALSE == NWKU_SendMsg(APP_PrintSensors, NULL, pmMainThreadMsgQueue))
+    {
+    	shell_write("\r Error trying to print sensors data! \n\r");
+    	ret = CMD_RET_FAILURE;
+    }
+
+    return ret;
+}
 
 #ifdef USE_MSD_BOOTLOADER
 /*!*************************************************************************************************
